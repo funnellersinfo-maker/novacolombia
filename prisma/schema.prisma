@@ -1,0 +1,285 @@
+// NOVA Colombia — esquema de tienda transaccional
+// Nota: SQLite no soporta listas primitivas; los arrays se guardan como JSON string.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Configuración editable sin código: marca, home, colecciones, textos
+model SiteConfig {
+  key       String   @id
+  value     String // JSON
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  phone        String?
+  passwordHash String
+  role         String      @default("CUSTOMER") // CUSTOMER | ADMIN
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  addresses    Address[]
+  orders       Order[]
+  favorites    Favorite[]
+  auditLogs    AuditLog[]
+}
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label        String   @default("Casa")
+  name         String
+  phone        String
+  email        String?
+  departamento String
+  ciudad       String
+  direccion    String
+  complemento  String?
+  indicaciones String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String    @default("")
+  icon        String    @default("Tag")
+  color       String    @default("#FF5A36")
+  special     String? // "deals" = categoría dinámica de ofertas
+  sortOrder   Int       @default(0)
+  active      Boolean   @default(true)
+  products    Product[]
+}
+
+model Product {
+  id             String         @id @default(cuid())
+  slug           String         @unique
+  name           String
+  brand          String         @default("")
+  seller         String         @default("NOVA Retail")
+  description    String         @default("")
+  features       String         @default("[]") // JSON [[k,v],...]
+  categoryId     String
+  category       Category       @relation(fields: [categoryId], references: [id])
+  subcategory    String         @default("")
+  price          Int
+  compareAtPrice Int?
+  stock          Int            @default(0)
+  sku            String         @default("")
+  prepayEligible Boolean        @default(true)
+  codAvailable   Boolean        @default(true)
+  isFeatured     Boolean        @default(false)
+  isNew          Boolean        @default(false)
+  popularity     Int            @default(0)
+  tags           String         @default("[]") // JSON string[]
+  images         String         @default("[]") // JSON string[]
+  videoUrl       String?
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  variants       Variant[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  favorites      Favorite[]
+  priceHistory   PriceHistory[]
+}
+
+model Variant {
+  id         String      @id @default(cuid())
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind       String // Talla | Color | Tamaño | Modelo
+  value      String
+  priceDelta Int         @default(0)
+  stock      Int         @default(0)
+  sku        String      @default("")
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+// Carrito persistente en servidor (invitado por cookie o usuario logueado)
+model CartItem {
+  id        String   @id @default(cuid())
+  cartToken String
+  userId    String?
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   Variant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantKey String  @default("") // variantId || "" para unicidad
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartToken, productId, variantKey])
+}
+
+model Order {
+  id             String               @id @default(cuid())
+  number         String               @unique
+  idempotencyKey String?              @unique
+  userId         String?
+  user           User?                @relation(fields: [userId], references: [id])
+  status         String               @default("PENDING_PAYMENT")
+  paymentMethod  String // PREPAID | COD
+  paymentStatus  String               @default("PENDING")
+  customerName   String
+  phone          String
+  email          String?
+  departamento   String
+  ciudad         String
+  direccion      String
+  complemento    String?
+  indicaciones   String?
+  subtotal       Int
+  prepayDiscount Int                  @default(0)
+  shippingCost   Int
+  total          Int
+  etaMin         Int?
+  etaMax         Int?
+  items          OrderItem[]
+  payments       Payment[]
+  shipment       Shipment?
+  history        OrderStatusHistory[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+// Snapshot de línea: conserva precio y datos aunque cambie el catálogo
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  variantId      String?
+  variant        Variant? @relation(fields: [variantId], references: [id])
+  name           String
+  brand          String   @default("")
+  variantLabel   String   @default("")
+  image          String   @default("")
+  unitPrice      Int
+  quantity       Int
+  prepayEligible Boolean  @default(true)
+  lineSubtotal   Int
+  lineDiscount   Int      @default(0)
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider     String   @default("test") // test | wompi | mercadopago
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED | DECLINED
+  amount       Int
+  reference    String   @unique // referencia interna (idempotente)
+  providerTxId String?  @unique // id de transacción del proveedor (evita duplicados)
+  eventId      String?  @unique // id de evento de webhook (idempotencia)
+  raw          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Shipment {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrierCode    String   @default("")
+  carrierName    String   @default("")
+  trackingNumber String   @default("")
+  status         String   @default("PENDING") // PENDING | DISPATCHED | IN_TRANSIT | DELIVERED | RETURNED
+  incidents      String   @default("[]") // JSON [{at, note}]
+  updatedAt      DateTime @updatedAt
+}
+
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  from      String   @default("")
+  to        String
+  note      String   @default("")
+  byAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Carrier {
+  code        String  @id
+  name        String
+  supportsCod Boolean @default(true)
+  integration String  @default("manual") // manual | api-pending
+  notes       String  @default("")
+  active      Boolean @default(true)
+}
+
+model ShippingZone {
+  id           String  @id @default(cuid())
+  departamento String
+  ciudad       String  @default("*") // "*" = resto del departamento
+  price        Int
+  etaMin       Int
+  etaMax       Int
+  codAvailable Boolean @default(false)
+  active       Boolean @default(true)
+}
+
+// Promociones: PREPAY_DISCOUNT (regla 10%) y CAMPAIGN (ofertas por tiempo limitado)
+model Promotion {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  type        String    @default("PREPAY_DISCOUNT")
+  active      Boolean   @default(true)
+  percent     Int?
+  minSubtotal Int?
+  maxDiscount Int?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  config      String    @default("{}") // JSON {excludedProductIds:[]}
+  usageCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  price     Int
+  compareAt Int?
+  byAdmin   String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model Favorite {
+  userId    String   @default("")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String   @default("")
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+}
