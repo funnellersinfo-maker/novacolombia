@@ -274,3 +274,62 @@ Work Log:
 Stage Summary:
 - Entrega completa: tienda + admin + APIs + BD + pagos en modo pruebas +
   logística manual + documentación. 12/12 escenarios verificados.
+
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Push a GitHub + auditoría, conversión a landing estática y deploy a Cloudflare Pages
+
+Work Log:
+- Git: untrack de .env / db/custom.db / .zscripts/dev.pid, .gitignore ampliado,
+  historial limpio (orphan) con commit "full-stack" + rama `fullstack`, repo creado
+  vía API (github.com/funnellersinfo-maker/novacolombia, público) y push inicial
+  de main + fullstack.
+- Conversión a landing estática (checklist del usuario): next.config.ts exacto
+  (output 'export', images unoptimized, ignoreBuildErrors, reactStrictMode false),
+  eliminados src/app/api/**, componentes store/admin, libs de servidor, prisma/,
+  db/, data/, scripts/, hooks, store zustand y ~49 componentes ui no usados
+  (todo preservado en rama fullstack). Cero fetch('/api') y cero imports de
+  next/server en src (verificado con grep).
+- Nueva landing en src/components/landing/** (data.ts centraliza negocio, catálogo,
+  FAQ, cerebro del chatbot y legales): header sticky + menú Sheet móvil, hero con
+  imagen/overlay + título animado (framer-motion + prefers-reduced-motion), ticker,
+  modalidades de pago (regla 10% con ejemplo numérico + contraentrega), 3 pasos,
+  hub de 18 categorías (CTA WhatsApp por categoría), 12 productos con precio
+  anticipado −10% y CTA WhatsApp pre-armado, FAQ acordeón (single-collapsible),
+  formulario validado client-side con envío por WhatsApp + feedback visual,
+  footer completo (contacto, horarios, redes, legales en Dialogs, email break-all),
+  chatbot 100% local (intents con contenido priorizados sobre saludos, sugerencias,
+  typing indicator, flag hasInteracted sin auto-scroll) y flotantes WhatsApp +
+  chatbot con safe-area.
+- Assets: imágenes de producto descargadas del OSS y comprimidas con sharp a WebP
+  640x640 (14-68KB), heroes a WebP (31-33KB), og-image.jpg 1200x630 (60KB).
+- package.json: name novacolombia, build = "next build", db:push stub (para que
+  dev.sh del sandbox siga arrancando en reinicios), dependencias podadas de ~60 a
+  13 deps + 10 devDeps; bun install --lockfile-only (lockfile 465 paquetes).
+  Eliminado tailwind.config.ts legado (importaba tailwindcss-animate ya no instalado).
+- SEO: title 62 chars, description 159 chars, OG completo + Twitter card +
+  canonical, metadataBase novacolombia.pages.dev, lang es-CO, 1 solo h1,
+  alt en todas las imágenes, aria-labels.
+- E2E con agent-browser (dev :3000): 200 sin errores de consola; acordeón single-open;
+  chatbot (input, sugerencias, prioridad de intents corregida: contenido > saludo);
+  formulario (errores de validación, éxito, apertura de WhatsApp con mensaje
+  pre-armado en pestaña nueva); menú móvil Sheet con navegación por anclas; móvil
+  390px sin scroll horizontal; flotantes dentro del viewport; diálogo legal.
+  Warning Radix SheetDescription corregido.
+- Build en copia aislada /tmp/nova-build (para no tocar el dev server del sandbox):
+  npm run build OK → out/ 62 archivos, 2.1MB, index.html 118KB; verificado SEO y
+  assets dentro del export.
+- Deploy Cloudflare Pages (token cfut_… válido, cuenta autenticada): proyecto
+  `novacolombia` creado + deploy de 62 archivos → https://novacolombia.pages.dev
+  (HTTP 200, HTML byte-idéntico al local, 24 chunks idénticos, lógica del chatbot
+  presente en chunks live, hero/productos/og/robots/favicon servidos OK).
+  E2E en producción: título, chatbot, 32 links wa.me, sin errores.
+- Dev server del sandbox sigue corriendo en :3000 (HTTP 200) sirviendo la landing.
+
+Stage Summary:
+- Repo GitHub: github.com/funnellersinfo-maker/novacolombia (main = landing estática,
+  fullstack = e-commerce completo preservado).
+- Producción: https://novacolombia.pages.dev (62 archivos, 2.1MB).
+- Checklist del usuario cumplido; placeholders pendientes: número WhatsApp real,
+  redes sociales, datos del vendedor (marcados en data.ts y reporte).

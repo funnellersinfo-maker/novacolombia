@@ -331,6 +331,14 @@
   }
 }
 
+.animate-ticker {
+  animation: ticker 26s linear infinite;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 /* Accesibilidad: respetar preferencia de movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
   *,

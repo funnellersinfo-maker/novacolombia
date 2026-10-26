@@ -1,5 +1,5 @@
-import { NovaApp } from "@/components/store/nova-app";
+import { LandingPage } from "@/components/landing/landing-page";
 
 export default function Page() {
-  return <NovaApp />;
+  return <LandingPage />;
 }
